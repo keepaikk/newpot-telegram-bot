@@ -8,8 +8,8 @@ const OWNER_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 // Kk's Stellar deposit address for USDC
 // USDC on Stellar: CAOAL4BPMWQBPQDSUM2LL4WWVLLM56OHTLSSSJU2HPBI3Z2Z6R3Z4BCJ
-// Replace with Kk's actual Stellar address
-const STELLAR_ADDRESS = process.env.STELLAR_ADDRESS || 'GCXKG6RNB4KSNTP5NNH7VWSSO2D7XW43YYZEBE47WYG7WRKOEZPR4M3N';
+// Kk's actual XLM address (2026-03-25)
+const STELLAR_ADDRESS = process.env.STELLAR_ADDRESS || 'GB7B3CQJD5L7OX5KGMV6HMZ5Z7EB4CRPITQDG4MK4FZTQW34CU2GZQGZ';
 
 // USDC on Stellar - this is Circle's USDC issuer
 const USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZCH';
@@ -355,14 +355,15 @@ async function showDeposit(chatId, userId) {
   const usdcBal = balance?.crypto?.XLM || 0;
 
   let msg = `💰 *Deposit USDC*\n\n`;
-  msg += `Deposit US dollars into your Newpot account.\n`;
-  msg += `Zero volatility — what you deposit is what you withdraw.\n\n`;
-  msg += `*Send USDC via Stellar network:*\n`;
-  msg += `💵 Network: *Stellar (XLM)* — FREE, ~5 sec\n\n`;
-  msg += `*Your deposit address:*\n`;
-  msg += `📋 \`${DEPOSIT_ADDRESSES.USDC_STELLAR}\`\n\n`;
-  msg += `_Copy address, send USDC from any Stellar wallet_\n`;
-  msg += `_Lobstr, Solar, Hashpack, etc._\n\n`;
+  msg += `Send USDC (Stablecoin) via Stellar network.\n`;
+  msg += `What you send = what you get. No volatility.\n\n`;
+  msg += `*Network:* Stellar (XLM) — FREE, ~5 seconds\n`;
+  msg += `*Asset:* USDC (Circle)\n\n`;
+  msg += `📋 *Your deposit address:*\n`;
+  msg += `\`${DEPOSIT_ADDRESSES.USDC_STELLAR}\`\n\n`;
+  msg += `_Copy and send USDC from any Stellar wallet_\n`;
+  msg += `_Lobstr, Solar, Ledger Live, etc._\n\n`;
+  msg += `⚠️ *Important:* Send only USDC. Other assets may be lost.\n`;
   msg += `💰 Current balance: $${usdcBal.toFixed(2)} USDC`;
 
   await sendMessage(chatId, msg, { reply_markup: depositConfirmKeyboard() });
