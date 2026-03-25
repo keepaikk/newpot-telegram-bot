@@ -1,3 +1,20 @@
 #!/bin/bash
-cd /home/jasper/newpot-bot
-node index.js >> /var/log/newpot-bot.log 2>&1
+# Newpot Bot Startup Script
+# Restarts bot on crash, starts on reboot
+
+NAME="newpot-bot"
+DIR="/home/jasper/newpot-bot"
+LOG="/tmp/newpot-bot.log"
+PID_FILE="/tmp/newpot-bot.pid"
+
+cd $DIR
+
+# Load env
+set -a
+[ -f .env ] && source .env
+set +a
+
+# Start bot
+node bot.js >> $LOG 2>&1 &
+echo $! > $PID_FILE
+echo "[$(date)] Started newpot-bot PID $(cat $PID_FILE)"
