@@ -361,9 +361,10 @@ async function showDeposit(chatId, userId) {
   msg += `*Asset:* USDC (Circle)\n\n`;
   msg += `📋 *Your deposit address:*\n`;
   msg += `\`${DEPOSIT_ADDRESSES.USDC_STELLAR}\`\n\n`;
-  msg += `_Copy and send USDC from any Stellar wallet_\n`;
-  msg += `_Lobstr, Solar, Ledger Live, etc._\n\n`;
-  msg += `⚠️ *Important:* Send only USDC. Other assets may be lost.\n`;
+  msg += `⚠️ *IMPORTANT - Set memo:*\n`;
+  msg += `When sending, set the *memo* to:\n`;
+  msg += `\`${userId}\`\n\n`;
+  msg += `_This identifies your deposit_\n\n`;
   msg += `💰 Current balance: $${usdcBal.toFixed(2)} USDC`;
 
   await sendMessage(chatId, msg, { reply_markup: depositConfirmKeyboard() });
