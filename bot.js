@@ -6,11 +6,17 @@ const API_URL = process.env.API_URL || 'http://localhost:5000/api';
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const OWNER_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
-// Deposit addresses (Kk controls these)
+// Kk's Stellar deposit address for USDC
+// USDC on Stellar: CAOAL4BPMWQBPQDSUM2LL4WWVLLM56OHTLSSSJU2HPBI3Z2Z6R3Z4BCJ
+// Replace with Kk's actual Stellar address
+const STELLAR_ADDRESS = process.env.STELLAR_ADDRESS || 'GCXKG6RNB4KSNTP5NNH7VWSSO2D7XW43YYZEBE47WYG7WRKOEZPR4M3N';
+
+// USDC on Stellar - this is Circle's USDC issuer
+const USDC_ISSUER = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZCH';
+const USDC_ASSET = 'USDC';
+
 const DEPOSIT_ADDRESSES = {
-  XLM: 'GCXKG6RNB4KSNTP5NNH7VWSSO2D7XW43YYZEBE47WYG7WRKOEZPR4M3N',  // Stellar
-  ETH: '0x8B4a5d8679B66d3f5C7c7c6E2D5fB8aC3D9F1E4b',  // Ethereum
-  BTC: 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh'   // Bitcoin
+  USDC_STELLAR: STELLAR_ADDRESS,
 };
 
 // Market cache
@@ -63,11 +69,11 @@ async function placeBet(userId, marketId, side, amount, paymentMethod) {
   }
 }
 
-async function depositCrypto(userId, amount, currency) {
+async function depositUSDC(userId, amount) {
   try {
     const res = await axios.post(
       `${API_URL}/wallet/deposit`,
-      { paymentMethod: currency, amount, currency },
+      { paymentMethod: 'USDC', amount, currency: 'USDC' },
       { headers: { 'x-user-id': userId } }
     );
     return res.data;
@@ -93,29 +99,16 @@ async function getPortfolio(userId) {
 
 async function sendMessage(chatId, text, opts = {}) {
   try {
-    const payload = {
+    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       chat_id: chatId,
       text,
       parse_mode: opts.parse_mode || 'Markdown',
       reply_markup: opts.reply_markup,
       disable_web_page_preview: true
-    };
-    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, payload);
+    });
   } catch (err) {
     console.error('Send error:', err.message);
   }
-}
-
-async function editMessage(chatId, messageId, text, opts = {}) {
-  try {
-    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
-      chat_id: chatId,
-      message_id: messageId,
-      text,
-      parse_mode: opts.parse_mode || 'Markdown',
-      reply_markup: opts.reply_markup
-    });
-  } catch {}
 }
 
 async function answerCallback(queryId, text, show_alert = false) {
@@ -135,8 +128,8 @@ async function answerCallback(queryId, text, show_alert = false) {
 function mainMenu() {
   return JSON.stringify({
     keyboard: [
-      [{ text: '📊 Markets' }, { text: '💼 Wallet' }],
-      [{ text: '📈 Portfolio' }, { text: '❓ Help' }]
+      [{ text: '📊 Markets' }, { text: '💰 Deposit' }],
+      [{ text: '💼 Wallet' }, { text: '📈 Portfolio' }]
     ],
     resize_keyboard: true
   });
@@ -145,9 +138,8 @@ function mainMenu() {
 function walletKeyboard() {
   return JSON.stringify({
     inline_keyboard: [
-      [{ text: '💰 Deposit', callback_data: 'deposit_menu' }],
-      [{ text: '📤 Withdraw', callback_data: 'withdraw_menu' }],
-      [{ text: '📜 Transaction History', callback_data: 'tx_history' }],
+      [{ text: '💰 Deposit USDC', callback_data: 'deposit_menu' }],
+      [{ text: '📤 Withdraw USDC', callback_data: 'withdraw_menu' }],
       [{ text: '🔙 Back to Menu', callback_data: 'menu' }]
     ]
   });
@@ -156,44 +148,24 @@ function walletKeyboard() {
 function depositMenuKeyboard() {
   return JSON.stringify({
     inline_keyboard: [
-      [{ text: '💎 XLM (Stellar) - FREE', callback_data: 'dep_XLM' }],
-      [{ text: '⟐ ETH (Ethereum)', callback_data: 'dep_ETH' }],
-      [{ text: '₿ BTC (Bitcoin)', callback_data: 'dep_BTC' }],
+      [{ text: '💵 Deposit USDC (Stellar)', callback_data: 'dep_stellar' }],
       [{ text: '🔙 Back to Wallet', callback_data: 'wallet' }]
     ]
   });
 }
 
-function depositXLMKeyboard() {
+function depositConfirmKeyboard() {
   return JSON.stringify({
     inline_keyboard: [
-      [{ text: '✅ I Sent XLM', callback_data: 'dep_confirm_XLM' }],
-      [{ text: '🔙 Cancel', callback_data: 'deposit_menu' }]
-    ]
-  });
-}
-
-function depositETHKeyboard() {
-  return JSON.stringify({
-    inline_keyboard: [
-      [{ text: '✅ I Sent ETH', callback_data: 'dep_confirm_ETH' }],
-      [{ text: '🔙 Cancel', callback_data: 'deposit_menu' }]
-    ]
-  });
-}
-
-function depositBTCKeyboard() {
-  return JSON.stringify({
-    inline_keyboard: [
-      [{ text: '✅ I Sent BTC', callback_data: 'dep_confirm_BTC' }],
-      [{ text: '🔙 Cancel', callback_data: 'deposit_menu' }]
+      [{ text: '✅ I Sent USDC', callback_data: 'dep_confirm' }],
+      [{ text: '❌ Cancel', callback_data: 'menu' }]
     ]
   });
 }
 
 function marketsListKeyboard(markets) {
   const rows = markets.map(m => [{
-    text: `${m.yesPrice >= 0.5 ? '🟢' : '🔴'} ${m.title.substring(0, 30)}...`,
+    text: `${m.yesPrice >= 0.5 ? '🟢' : '🔴'} ${m.title.substring(0, 35)}...`,
     callback_data: `market_${m.id}`
   }]);
   rows.push([{ text: '🔙 Back to Menu', callback_data: 'menu' }]);
@@ -203,21 +175,9 @@ function marketsListKeyboard(markets) {
 function withdrawMenuKeyboard() {
   return JSON.stringify({
     inline_keyboard: [
-      [{ text: '💎 Withdraw XLM', callback_data: 'withd_XLM' }],
-      [{ text: '⟐ Withdraw ETH', callback_data: 'withd_ETH' }],
-      [{ text: '₿ Withdraw BTC', callback_data: 'withd_BTC' }],
+      [{ text: '📤 Withdraw to Bank (MoMo)', callback_data: 'withd_momo' }],
+      [{ text: '📤 Withdraw to Stellar Wallet', callback_data: 'withd_stellar' }],
       [{ text: '🔙 Back to Wallet', callback_data: 'wallet' }]
-    ]
-  });
-}
-
-function withdrawConfirmKeyboard(currency) {
-  return JSON.stringify({
-    inline_keyboard: [
-      [
-        { text: '✅ Confirm Withdrawal', callback_data: `withd_confirm_${currency}` },
-        { text: '❌ Cancel', callback_data: 'withdraw_menu' }
-      ]
     ]
   });
 }
@@ -230,26 +190,18 @@ async function cmdStart(chatId, userId) {
   userStates.delete(userId);
   
   const balance = await getBalance(userId);
+  const usdcBal = balance?.crypto?.XLM || 0; // Using XLM slot for USDC in MVP
   
-  const xlmBal = balance?.crypto?.XLM || 0;
-  const ethBal = balance?.crypto?.ETH || 0;
-  const btcBal = balance?.crypto?.BTC || 0;
-  const mtnBal = balance?.mobileMoneyBalances?.find(b => b.provider === 'MTN')?.balance || 0;
-  
-  let msg = `🇬🇭 *Welcome to Newpot!*
+  let msg = `🇬🇭 *Newpot - Ghana's Prediction Market*
 
-Ghana's crypto prediction market.
-Predict. Bet. Win.
+Predict African outcomes.
+Win in US Dollars.
 
 ━━━━━━━━━━━━━━━━━━
-💼 *Your Balances*
-💎 XLM: *${xlmBal.toFixed(2)}*
-⟐ ETH: *${ethBal.toFixed(4)}*
-₿ BTC: *${btcBal.toFixed(6)}*
-📱 MTN: *GHS ${mtnBal.toFixed(2)}*
+💰 *Balance:* $${usdcBal.toFixed(2)} USDC
 ━━━━━━━━━━━━━━━━━━
 
-*Select an option:*`;
+*Choose an option:*`;
 
   await sendMessage(chatId, msg, { reply_markup: mainMenu() });
 }
@@ -259,11 +211,11 @@ async function showMarkets(chatId, userId) {
   userStates.delete(userId);
   
   if (markets.length === 0) {
-    await sendMessage(chatId, '📭 No markets available.');
+    await sendMessage(chatId, '📭 No markets yet. Check back soon!');
     return;
   }
 
-  let msg = `📊 *Active Markets*\nSelect a market to view odds:\n\n`;
+  let msg = `📊 *Active Markets*\nSelect a market to bet:\n\n`;
   
   markets.forEach((m, i) => {
     const endDate = new Date(m.endDate);
@@ -272,7 +224,7 @@ async function showMarkets(chatId, userId) {
     
     msg += `*${i + 1}.* ${m.title}\n`;
     msg += `   🟢 YES ${(m.yesPrice * 100).toFixed(0)}% | 🔴 NO ${(m.noPrice * 100).toFixed(0)}%\n`;
-    msg += `   ${status} ${days > 0 ? days + 'd left' : 'ENDING'} | Vol: GHS ${(m.volume || 0).toLocaleString()}\n\n`;
+    msg += `   ${status} ${days > 0 ? days + 'd left' : 'ENDING'} | Vol: $${(m.volume || 0).toLocaleString()}\n\n`;
   });
 
   await sendMessage(chatId, msg, { reply_markup: marketsListKeyboard(markets) });
@@ -292,29 +244,25 @@ async function showMarketDetail(chatId, userId, marketId) {
   const yesPayout = (1 / m.yesPrice).toFixed(2);
   const noPayout = (1 / m.noPrice).toFixed(2);
   const balance = await getBalance(userId);
-  const mtnBal = balance?.mobileMoneyBalances?.find(b => b.provider === 'MTN')?.balance || 0;
-  const xlmBal = balance?.crypto?.XLM || 0;
-  const ethBal = balance?.crypto?.ETH || 0;
+  const usdcBal = balance?.crypto?.XLM || 0;
 
   let msg = `📈 *${m.title}*\n\n`;
   msg += `${m.description}\n\n`;
   msg += `━━━━━━━━━━━━━━━━━━\n`;
-  msg += `🟢 *YES:* ${(m.yesPrice * 100).toFixed(1)}% — Win *${yesPayout}x*\n`;
-  msg += `🔴 *NO:*  ${(m.noPrice * 100).toFixed(1)}% — Win *${noPayout}x*\n`;
+  msg += `🟢 *YES:* ${(m.yesPrice * 100).toFixed(1)}% → Win *$${yesPayout}* per $1\n`;
+  msg += `🔴 *NO:*  ${(m.noPrice * 100).toFixed(1)}% → Win *$${noPayout}* per $1\n`;
   msg += `━━━━━━━━━━━━━━━━━━\n`;
-  msg += `📊 Volume: GHS ${(m.volume || 0).toLocaleString()}\n`;
-  msg += `⏰ Settles: ${endDate.toLocaleDateString('en-GB')} (${days}d)\n\n`;
-  msg += `💼 *Your balances:*\n`;
-  msg += `   💎 XLM: ${xlmBal.toFixed(2)} | ⟐ ETH: ${ethBal.toFixed(4)}\n`;
-  msg += `   📱 MTN: GHS ${mtnBal.toFixed(2)}\n`;
+  msg += `📊 Volume: $${(m.volume || 0).toLocaleString()}\n`;
+  msg += `⏰ Settles: ${endDate.toLocaleDateString('en-GB')} (${days}d)\n`;
+  msg += `💰 Balance: *$${usdcBal.toFixed(2)} USDC*\n`;
   msg += `━━━━━━━━━━━━━━━━━━\n\n`;
   msg += `*Select your prediction:*`;
 
   const keyboard = JSON.stringify({
     inline_keyboard: [
       [
-        { text: `🟢 BET YES @ ${(m.yesPrice * 100).toFixed(0)}%`, callback_data: `side_YES_${m.id}` },
-        { text: `🔴 BET NO @ ${(m.noPrice * 100).toFixed(0)}%`, callback_data: `side_NO_${m.id}` }
+        { text: `🟢 BET YES — $${yesPayout}x`, callback_data: `side_YES_${m.id}` },
+        { text: `🔴 BET NO — $${noPayout}x`, callback_data: `side_NO_${m.id}` }
       ],
       [{ text: '📊 More Markets', callback_data: 'all_markets' }],
       [{ text: '🔙 Main Menu', callback_data: 'menu' }]
@@ -331,101 +279,43 @@ async function showBetAmount(chatId, userId, side, marketId) {
 
   const price = side === 'YES' ? m.yesPrice : m.noPrice;
   const balance = await getBalance(userId);
-  const mtnBal = balance?.mobileMoneyBalances?.find(b => b.provider === 'MTN')?.balance || 0;
-  const xlmBal = balance?.crypto?.XLM || 0;
-  const ethBal = balance?.crypto?.ETH || 0;
+  const usdcBal = balance?.crypto?.XLM || 0;
 
-  // Store user's bet intent
   userStates.set(userId, { action: 'betting', marketId, side, price });
 
   const emoji = side === 'YES' ? '🟢' : '🔴';
   
   let msg = `${emoji} *Bet on ${side}*\n\n`;
   msg += `📊 Market: ${m.title}\n`;
-  msg += `💰 Odds: ${(price * 100).toFixed(1)}%\n\n`;
-  msg += `*Select payment currency:*\n`;
-  msg += `💎 XLM: ${xlmBal.toFixed(2)}\n`;
-  msg += `⟐ ETH: ${ethBal.toFixed(4)}\n`;
-  msg += `📱 MTN: GHS ${mtnBal.toFixed(2)}\n\n`;
-  msg += `*Select amount in GHS equivalent:*`;
+  msg += `💰 Odds: ${(price * 100).toFixed(1)}% → $${(1/price).toFixed(2)} per $1\n`;
+  msg += `💰 Balance: $${usdcBal.toFixed(2)} USDC\n\n`;
+  msg += `*Select bet amount:*`;
 
   await sendMessage(chatId, msg, {
     reply_markup: JSON.stringify({
       inline_keyboard: [
-        [
-          { text: `💎 XLM (${Math.floor(xlmBal)} available)`, callback_data: `pay_XLM_${marketId}_${side}` },
-        ],
-        [
-          { text: `⟐ ETH (${ethBal.toFixed(4)} available)`, callback_data: `pay_ETH_${marketId}_${side}` },
-        ],
-        [
-          { text: `📱 MTN GHS (${mtnBal.toFixed(2)} available)`, callback_data: `pay_MTN_${marketId}_${side}` },
-        ],
+        [{ text: '$5 USDC', callback_data: `bet_${marketId}_${side}_5` }, { text: '$10 USDC', callback_data: `bet_${marketId}_${side}_10` }, { text: '$25 USDC', callback_data: `bet_${marketId}_${side}_25` }],
+        [{ text: '$50 USDC', callback_data: `bet_${marketId}_${side}_50` }, { text: '$100 USDC', callback_data: `bet_${marketId}_${side}_100` }],
+        [{ text: '$200 USDC', callback_data: `bet_${marketId}_${side}_200` }],
+        [{ text: '💬 Custom Amount', callback_data: `bet_custom_${marketId}_${side}` }],
         [{ text: '❌ Cancel', callback_data: `market_${marketId}` }]
       ]
     })
   });
 }
 
-async function showBetAmountForCurrency(chatId, userId, currency, marketId, side) {
-  const markets = await getMarkets();
-  const m = markets.find(x => x.id === marketId);
-  if (!m) return;
-
-  const price = side === 'YES' ? m.yesPrice : m.noPrice;
+async function executeBet(chatId, userId, marketId, side, amountUSDC) {
   const balance = await getBalance(userId);
-  let available = 0;
+  const usdcBal = balance?.crypto?.XLM || 0; // USDC stored in XLM slot for MVP
   
-  if (currency === 'XLM') available = balance?.crypto?.XLM || 0;
-  else if (currency === 'ETH') available = balance?.crypto?.ETH || 0;
-  else if (currency === 'MTN') available = balance?.mobileMoneyBalances?.find(b => b.provider === 'MTN')?.balance || 0;
-  else if (currency === 'BTC') available = balance?.crypto?.BTC || 0;
-
-  userStates.set(userId, { action: 'betting', marketId, side, price, currency });
-
-  const emoji = side === 'YES' ? '🟢' : '🔴';
-  const currencySymbol = currency === 'XLM' ? '💎' : currency === 'ETH' ? '⟐' : currency === 'BTC' ? '₿' : '📱';
-  
-  let msg = `${emoji} *Bet ${side} — Paying with ${currency}*\n\n`;
-  msg += `📊 Market: ${m.title}\n`;
-  msg += `💰 Odds: ${(price * 100).toFixed(1)}%\n`;
-  msg += `${currencySymbol} Available: ${available.toFixed(currency === 'XLM' ? 2 : 4)}\n\n`;
-  msg += `*Select stake amount:*`;
-
-  await sendMessage(chatId, msg, {
-    reply_markup: JSON.stringify({
-      inline_keyboard: [
-        [{ text: '10 GHS', callback_data: `bet_${marketId}_${side}_${currency}_10` }, { text: '25 GHS', callback_data: `bet_${marketId}_${side}_${currency}_25` }, { text: '50 GHS', callback_data: `bet_${marketId}_${side}_${currency}_50` }],
-        [{ text: '100 GHS', callback_data: `bet_${marketId}_${side}_${currency}_100` }, { text: '200 GHS', callback_data: `bet_${marketId}_${side}_${currency}_200` }],
-        [{ text: '💬 Enter Custom', callback_data: `bet_custom_${marketId}_${side}_${currency}` }],
-        [{ text: '❌ Cancel', callback_data: `market_${marketId}` }]
-      ]
-    })
-  });
-}
-
-async function executeBet(chatId, userId, marketId, side, currency, amountGHS) {
-  const balance = await getBalance(userId);
-  let available = 0;
-  
-  if (currency === 'XLM') available = balance?.crypto?.XLM || 0;
-  else if (currency === 'ETH') available = balance?.crypto?.ETH || 0;
-  else if (currency === 'BTC') available = balance?.crypto?.BTC || 0;
-  else if (currency === 'MTN') available = balance?.mobileMoneyBalances?.find(b => b.provider === 'MTN')?.balance || 0;
-  
-  // For MVP: use GHS amount as proxy for crypto amount (simplified)
-  // In production: convert GHS to crypto at current price
-  const amount = amountGHS;
-
-  if (available < amount) {
-    const currencySymbol = currency === 'XLM' ? '💎' : currency === 'ETH' ? '⟐' : currency === 'BTC' ? '₿' : '📱';
-    await sendMessage(chatId, `❌ *Insufficient ${currency} balance*\n\n${currencySymbol} Your ${currency}: ${available.toFixed(2)}\nRequired: ${amount.toFixed(2)}\n\nDeposit first: /deposit`, {
+  if (usdcBal < amountUSDC) {
+    await sendMessage(chatId, `❌ *Insufficient balance*\n\n💰 Your balance: $${usdcBal.toFixed(2)} USDC\nBet amount: $${amountUSDC.toFixed(2)} USDC\n\nDeposit first: /deposit`, {
       reply_markup: mainMenu()
     });
     return;
   }
 
-  const result = await placeBet(userId, marketId, side, amount, currency);
+  const result = await placeBet(userId, marketId, side, amountUSDC, 'XLM'); // XLM = USDC in MVP
   
   if (!result.success) {
     await sendMessage(chatId, `❌ *Bet failed*\n\n${result.error?.message || 'Unknown error'}`, {
@@ -437,13 +327,14 @@ async function executeBet(chatId, userId, marketId, side, currency, amountGHS) {
   const markets = await getMarkets();
   const m = markets.find(x => x.id === marketId);
   const emoji = side === 'YES' ? '🟢' : '🔴';
+  const payout = (amountUSDC / (side === 'YES' ? m.yesPrice : m.noPrice) * 0.97).toFixed(2);
 
   let msg = `✅ *Bet Placed!*\n\n`;
-  msg += `${emoji} *${side}* on: ${m?.title || 'Market'}\n`;
-  msg += `💵 Stake: ${amount.toFixed(2)} ${currency}\n`;
-  msg += `📊 Shares: ${result.data?.user_shares || 'N/A'}\n`;
-  msg += `💰 Potential payout: *${(result.data?.user_shares * 0.97 || 0).toFixed(2)} ${currency}*\n`;
-  msg += `_3% house fee_`;
+  msg += `${emoji} *${side}* on: ${m?.title?.substring(0, 40) || 'Market'}\n`;
+  msg += `💵 Stake: *$${amountUSDC.toFixed(2)} USDC*\n`;
+  msg += `📊 Odds: ${(side === 'YES' ? m.yesPrice : m.noPrice) * 100}%\n`;
+  msg += `💰 Potential payout: *$${payout} USDC*\n`;
+  msg += `_3% house fee applied at settlement_`;
 
   await sendMessage(chatId, msg, { reply_markup: mainMenu() });
 
@@ -451,113 +342,82 @@ async function executeBet(chatId, userId, marketId, side, currency, amountGHS) {
   if (OWNER_CHAT_ID && OWNER_CHAT_ID !== String(chatId)) {
     await sendMessage(OWNER_CHAT_ID, `💰 *New bet!*
 User ${userId}
-${amount} ${currency} on ${side} → Market [${marketId}]`);
+$${amountUSDC} USDC on ${side}
+Market [${marketId}]
+Payout: $${payout}`);
   }
 }
 
 async function showDeposit(chatId, userId) {
   userStates.delete(userId);
   
-  let msg = `💰 *Deposit Crypto*\n\n`;
-  msg += `Send crypto to deposit into your Newpot wallet.\n`;
-  msg += `*Min deposit:* 10 XLM / 0.01 ETH / 0.001 BTC\n\n`;
-  msg += `*Select cryptocurrency:*`;
-
-  await sendMessage(chatId, msg, { reply_markup: depositMenuKeyboard() });
-}
-
-async function showDepositAddress(chatId, userId, currency) {
-  const address = DEPOSIT_ADDRESSES[currency];
   const balance = await getBalance(userId);
-  let currentBal = 0;
-  
-  if (currency === 'XLM') currentBal = balance?.crypto?.XLM || 0;
-  else if (currency === 'ETH') currentBal = balance?.crypto?.ETH || 0;
-  else if (currency === 'BTC') currentBal = balance?.crypto?.BTC || 0;
+  const usdcBal = balance?.crypto?.XLM || 0;
 
-  const symbols = { XLM: '💎', ETH: '⟐', BTC: '₿' };
-  const explorer = {
-    XLM: 'https://stellar.expert/explorer/public/account/',
-    ETH: 'https://etherscan.io/address/',
-    BTC: 'https://blockstream.info/address/'
-  };
+  let msg = `💰 *Deposit USDC*\n\n`;
+  msg += `Deposit US dollars into your Newpot account.\n`;
+  msg += `Zero volatility — what you deposit is what you withdraw.\n\n`;
+  msg += `*Send USDC via Stellar network:*\n`;
+  msg += `💵 Network: *Stellar (XLM)* — FREE, ~5 sec\n\n`;
+  msg += `*Your deposit address:*\n`;
+  msg += `📋 \`${DEPOSIT_ADDRESSES.USDC_STELLAR}\`\n\n`;
+  msg += `_Copy address, send USDC from any Stellar wallet_\n`;
+  msg += `_Lobstr, Solar, Hashpack, etc._\n\n`;
+  msg += `💰 Current balance: $${usdcBal.toFixed(2)} USDC`;
 
-  let msg = `💰 *Deposit ${currency}*\n\n`;
-  msg += `Send *${currency}* to this address:\n\n`;
-  msg += `📋 \`${address}\`\n\n`;
-  msg += `_Or tap address to copy_\n\n`;
-  msg += `⏱️ *Processing:* ~5 min (XLM ~1 min)\n`;
-  msg += `💎 Current balance: ${currentBal.toFixed(currency === 'XLM' ? 2 : 4)} ${currency}\n\n`;
-  msg += `*After sending, tap "I Sent ${currency}" to credit your account*`;
-
-  let keyboard;
-  if (currency === 'XLM') keyboard = depositXLMKeyboard();
-  else if (currency === 'ETH') keyboard = depositETHKeyboard();
-  else keyboard = depositBTCKeyboard();
-
-  await sendMessage(chatId, msg, { reply_markup: keyboard });
+  await sendMessage(chatId, msg, { reply_markup: depositConfirmKeyboard() });
 }
 
-async function confirmDeposit(chatId, userId, currency) {
-  // In production: check blockchain for tx
-  // For MVP: credit a demo amount
-  const demoAmounts = { XLM: 100, ETH: 0.05, BTC: 0.001 };
-  const amount = demoAmounts[currency];
+async function confirmDeposit(chatId, userId) {
+  // In production: verify on-chain with Stellar API
+  // For MVP: credit demo amount
+  const demoAmount = 50; // $50 demo credit
   
-  const result = await depositCrypto(userId, amount, currency);
+  const result = await depositUSDC(userId, demoAmount);
   
   if (result.success) {
     const balance = await getBalance(userId);
-    let newBal = 0;
-    if (currency === 'XLM') newBal = balance?.crypto?.XLM || 0;
-    else if (currency === 'ETH') newBal = balance?.crypto?.ETH || 0;
-    else if (currency === 'BTC') newBal = balance?.crypto?.BTC || 0;
+    const usdcBal = balance?.crypto?.XLM || 0;
 
-    let msg = `✅ *${currency} Deposited!*\n\n`;
-    msg += `💎 +${amount} ${currency} credited\n`;
-    msg += `💼 New balance: *${newBal.toFixed(currency === 'XLM' ? 2 : 4)} ${currency}*\n\n`;
+    let msg = `✅ *USDC Deposited! (Demo)*\n\n`;
+    msg += `💰 +$${demoAmount.toFixed(2)} USDC credited\n`;
+    msg += `💰 Balance: *$${usdcBal.toFixed(2)} USDC*\n\n`;
+    msg += `_(Real deposits: send USDC via Stellar to the address above)_\n\n`;
     msg += `_Ready to place bets!_`;
 
     await sendMessage(chatId, msg, { reply_markup: mainMenu() });
   } else {
-    await sendMessage(chatId, `❌ Deposit failed. Try again or contact support.`, {
-      reply_markup: mainMenu()
-    });
+    await sendMessage(chatId, `❌ Deposit failed.`, { reply_markup: mainMenu() });
   }
 }
 
-async function showWithdrawAddress(chatId, userId, currency) {
-  userStates.set(userId, { action: 'withdraw', currency });
-  
+async function showWithdraw(chatId, userId) {
   const balance = await getBalance(userId);
-  let available = 0;
-  
-  if (currency === 'XLM') available = balance?.crypto?.XLM || 0;
-  else if (currency === 'ETH') available = balance?.crypto?.ETH || 0;
-  else if (currency === 'BTC') available = balance?.crypto?.BTC || 0;
+  const usdcBal = balance?.crypto?.XLM || 0;
 
-  let msg = `📤 *Withdraw ${currency}*\n\n`;
-  msg += `💎 Available: *${available.toFixed(currency === 'XLM' ? 2 : 4)} ${currency}*\n\n`;
-  msg += `Send your ${currency} address:\n`;
-  msg += `_Reply with your wallet address_`;
+  if (usdcBal < 1) {
+    await sendMessage(chatId, `❌ *Minimum withdrawal: $1 USDC*\n\nYour balance: $${usdcBal.toFixed(2)} USDC`, {
+      reply_markup: mainMenu()
+    });
+    return;
+  }
 
-  await sendMessage(chatId, msg);
+  let msg = `📤 *Withdraw USDC*\n\n`;
+  msg += `💰 Available: *$${usdcBal.toFixed(2)} USDC*\n\n`;
+  msg += `*Choose withdrawal method:*`;
+
+  await sendMessage(chatId, msg, { reply_markup: withdrawMenuKeyboard() });
 }
 
 async function showWallet(chatId, userId) {
   const balance = await getBalance(userId);
-  
-  const xlmBal = balance?.crypto?.XLM || 0;
-  const ethBal = balance?.crypto?.ETH || 0;
-  const btcBal = balance?.crypto?.BTC || 0;
+  const usdcBal = balance?.crypto?.XLM || 0;
   const mtnBal = balance?.mobileMoneyBalances?.find(b => b.provider === 'MTN')?.balance || 0;
-  
+
   let msg = `💼 *Your Wallet*\n\n`;
-  msg += `💎 *XLM:* ${xlmBal.toFixed(2)}\n`;
-  msg += `⟐ *ETH:* ${ethBal.toFixed(6)}\n`;
-  msg += `₿ *BTC:* ${btcBal.toFixed(6)}\n`;
-  msg += `📱 *MTN:* GHS ${mtnBal.toFixed(2)}\n`;
-  msg += `\n_USDT/USDC coming soon_`;
+  msg += `💵 *USDC (Stellar):* $${usdcBal.toFixed(2)}\n`;
+  if (mtnBal > 0) msg += `📱 *MTN MoMo:* GHS ${mtnBal.toFixed(2)}\n`;
+  msg += `\n_1 USDC ≈ $1 USD (stable)_`;
 
   await sendMessage(chatId, msg, { reply_markup: walletKeyboard() });
 }
@@ -567,44 +427,51 @@ async function showPortfolio(chatId, userId) {
   const markets = await getMarkets();
 
   if (positions.length === 0) {
-    await sendMessage(chatId, `📭 *No positions yet*\n\n/markets to start trading!`, {
+    await sendMessage(chatId, `📭 *No positions yet*\n\n/markets to start predicting!`, {
       reply_markup: mainMenu()
     });
     return;
   }
 
   let msg = `📈 *Your Portfolio*\n${positions.length} positions:\n\n`;
-  let totalPnl = 0;
+  let totalStaked = 0;
 
   for (const pos of positions) {
     const m = markets.find(x => x.id === pos.marketId);
-    const title = m ? m.title.substring(0, 25) : `Market ${pos.marketId}`;
+    const title = m ? m.title.substring(0, 30) : `Market ${pos.marketId}`;
     const emoji = pos.side === 'YES' ? '🟢' : '🔴';
     
     msg += `${emoji} *${pos.side}* — ${title}\n`;
-    msg += `   Stake: ${pos.amount} ${pos.paymentMethod} | P&L: ${pos.amount >= pos.amount ? '+' : ''}${0}\n\n`;
-    totalPnl += 0; // Simplified for MVP
+    msg += `   💵 $${pos.amount.toFixed(2)} USDC staked\n\n`;
+    totalStaked += pos.amount;
   }
 
-  msg += `\n_Real-time P&L coming soon_`;
+  msg += `━━━━━━━━━━━━━━━━━━\n`;
+  msg += `💵 Total staked: $${totalStaked.toFixed(2)} USDC`;
+  msg += `\n━━━━━━━━━━━━━━━━━━`;
+
   await sendMessage(chatId, msg, { reply_markup: mainMenu() });
 }
 
 async function showHelp(chatId) {
-  let msg = `📖 *Newpot Help*\n\n`;
-  msg += `*How to trade:*\n`;
-  msg += `1. 💰 Deposit XLM/ETH/BTC\n`;
-  msg += `2. 📊 Browse /markets\n`;
-  msg += `3. 🟢🔴 Pick YES or NO\n`;
-  msg += `4. 💵 Enter stake\n`;
-  msg += `5. ✅ Confirm bet!\n\n`;
-  msg += `*Payout:* Correct prediction wins!\n`;
+  let msg = `📖 *Newpot Guide*\n\n`;
+  msg += `*How to predict:*\n`;
+  msg += `1. 💰 Deposit USDC (Stellar)\n`;
+  msg += `2. 📊 Pick a market\n`;
+  msg += `3. 🟢🔴 Choose YES or NO\n`;
+  msg += `4. 💵 Enter stake amount\n`;
+  msg += `5. ✅ Win if correct!\n\n`;
+  msg += `*Payout:*\n`;
+  msg += `Stake × Odds = Your win\n`;
   msg += `_3% house fee at settlement_\n\n`;
+  msg += `*Why USDC?*\n`;
+  msg += `Stable — same value as USD.\n`;
+  msg += `No crypto price swings.\n\n`;
   msg += `*Commands:*\n`;
   msg += `/start — Main menu\n`;
   msg += `/markets — Browse markets\n`;
-  msg += `/deposit — Add crypto\n`;
-  msg += `/balance — Check wallet\n`;
+  msg += `/deposit — Add USDC\n`;
+  msg += `/wallet — Check balances\n`;
   msg += `/portfolio — Your positions`;
 
   await sendMessage(chatId, msg, { reply_markup: mainMenu() });
@@ -620,71 +487,34 @@ async function handleCallback(chatId, userId, queryId, data) {
 
   await answerCallback(queryId, '');
 
-  if (action === 'menu') {
-    await cmdStart(chatId, userId);
-  }
-  else if (action === 'all_markets') {
-    await showMarkets(chatId, userId);
-  }
-  else if (action === 'market') {
-    await showMarketDetail(chatId, userId, parts[1]);
-  }
-  else if (action === 'side') {
-    await showBetAmount(chatId, userId, parts[1], parts[2]);
-  }
-  else if (action === 'pay') {
-    await showBetAmountForCurrency(chatId, userId, parts[1], parts[2], parts[3]);
-  }
+  if (action === 'menu') await cmdStart(chatId, userId);
+  else if (action === 'all_markets') await showMarkets(chatId, userId);
+  else if (action === 'market') await showMarketDetail(chatId, userId, parts[1]);
+  else if (action === 'side') await showBetAmount(chatId, userId, parts[1], parts[2]);
   else if (action === 'bet') {
-    const marketId = parts[1];
-    const side = parts[2];
-    const currency = parts[3];
-    const amount = parseFloat(parts[4]);
-    await executeBet(chatId, userId, marketId, side, currency, amount);
+    const [,, marketId, side, amount] = parts;
+    await executeBet(chatId, userId, marketId, side, parseFloat(amount));
   }
   else if (action === 'bet_custom') {
-    // Store state and prompt for amount
-    const marketId = parts[1];
-    const side = parts[2];
-    const currency = parts[3];
-    userStates.set(userId, { action: 'custom_bet', marketId, side, currency });
-    await sendMessage(chatId, `💬 *Enter custom amount in GHS:*\n\n_Reply with a number (e.g., 75)_`, {
-      reply_markup: JSON.stringify({
-        inline_keyboard: [[{ text: '❌ Cancel', callback_data: `market_${marketId}` }]]
-      })
-    });
+    const [,, marketId, side] = parts;
+    userStates.set(userId, { action: 'custom_bet', marketId, side });
+    await sendMessage(chatId, `💬 *Enter custom amount in USDC:*\n\n_Reply with a number (e.g., 75)_`);
   }
-  else if (action === 'dep' && parts[1]) {
-    const currency = parts[1];
-    if (currency === 'menu') {
-      await showDeposit(chatId, userId);
-    } else {
-      await showDepositAddress(chatId, userId, currency);
-    }
+  else if (action === 'deposit_menu') await showDeposit(chatId, userId);
+  else if (action === 'dep_stellar') await showDeposit(chatId, userId);
+  else if (action === 'dep_confirm') await confirmDeposit(chatId, userId);
+  else if (action === 'wallet') await showWallet(chatId, userId);
+  else if (action === 'withdraw_menu') await showWithdraw(chatId, userId);
+  else if (action === 'withd_momo') {
+    userStates.set(userId, { action: 'withdraw', method: 'momo' });
+    await sendMessage(chatId, `📤 *Withdraw to MoMo*\n\nSend your MoMo number:\n\n_Reply with phone number (e.g., 0201234567)_`);
   }
-  else if (action === 'dep_confirm') {
-    const currency = parts[1];
-    await confirmDeposit(chatId, userId, currency);
+  else if (action === 'withd_stellar') {
+    userStates.set(userId, { action: 'withdraw', method: 'stellar' });
+    await sendMessage(chatId, `📤 *Withdraw to Stellar*\n\nSend your Stellar address:\n\n_Reply with your Stellar wallet address_`);
   }
-  else if (action === 'deposit_menu') {
-    await showDeposit(chatId, userId);
-  }
-  else if (action === 'wallet') {
-    await showWallet(chatId, userId);
-  }
-  else if (action === 'withdraw_menu') {
-    await showWithdrawAddress(chatId, userId, 'XLM');
-  }
-  else if (action === 'withd' && parts[1]) {
-    const currency = parts[1];
-    await showWithdrawAddress(chatId, userId, currency);
-  }
-  else if (action === 'portfolio') {
-    await showPortfolio(chatId, userId);
-  }
-  else {
-    await sendMessage(chatId, 'Unknown action. Type /help');
-  }
+  else if (action === 'portfolio') await showPortfolio(chatId, userId);
+  else await sendMessage(chatId, 'Unknown action. Type /help');
 }
 
 // ============================================
@@ -695,31 +525,35 @@ async function handleMessage(message) {
   const chatId = message.chat.id;
   const userId = String(message.from.id);
   const text = message.text || '';
-
-  // Check user state for multi-step flows
   const state = userStates.get(userId);
 
   if (state?.action === 'custom_bet') {
     const amount = parseFloat(text);
-    if (!isNaN(amount) && amount > 0) {
+    if (!isNaN(amount) && amount >= 1) {
       userStates.delete(userId);
-      await executeBet(chatId, userId, state.marketId, state.side, state.currency, amount);
+      await executeBet(chatId, userId, state.marketId, state.side, amount);
     } else {
-      await sendMessage(chatId, '❌ Invalid amount. Enter a number.');
+      await sendMessage(chatId, '❌ Minimum bet is $1 USDC. Enter a valid number.');
     }
     return;
   }
 
   if (state?.action === 'withdraw') {
-    // Validate address format (simplified)
-    if (text.length > 20) {
-      userStates.delete(userId);
-      await sendMessage(chatId, `📤 *Withdrawal requested*\n\n${state.currency} will be sent to:\n\`${text}\`\n\nProcessing time: 1-24 hours.\n\n_Contact @newpot_support for issues_`, {
-        reply_markup: mainMenu()
-      });
+    userStates.delete(userId);
+    const balance = await getBalance(userId);
+    const usdcBal = balance?.crypto?.XLM || 0;
+    
+    let msg = `📤 *Withdrawal Requested*\n\n`;
+    msg += `Amount: $${usdcBal.toFixed(2)} USDC\n`;
+    if (state.method === 'momo') {
+      msg += `To: MoMo ${text}\n`;
+      msg += `_Processing: 24-48 hours_`;
     } else {
-      await sendMessage(chatId, '❌ Invalid address. Please enter a valid wallet address.');
+      msg += `To: ${text.substring(0, 20)}...\n`;
+      msg += `_Processing: ~5 minutes (Stellar)_`;
     }
+    
+    await sendMessage(chatId, msg, { reply_markup: mainMenu() });
     return;
   }
 
@@ -742,7 +576,7 @@ async function handleMessage(message) {
 
 async function startPolling() {
   let offset = 0;
-  console.log('🔄 Newpot Bot polling (crypto mode)...');
+  console.log('🔄 Newpot USDC Bot polling...');
 
   while (true) {
     try {
@@ -777,9 +611,8 @@ if (!BOT_TOKEN) {
   process.exit(1);
 }
 
-console.log('🚀 Newpot Crypto Bot starting...');
+console.log('🚀 Newpot USDC Bot starting...');
 console.log(`📡 API: ${API_URL}`);
-console.log('💎 XLM deposit:', DEPOSIT_ADDRESSES.XLM.substring(0, 20) + '...');
-console.log('⟐ ETH deposit:', DEPOSIT_ADDRESSES.ETH.substring(0, 20) + '...');
+console.log(`📬 Deposit address: ${DEPOSIT_ADDRESSES.USDC_STELLAR.substring(0, 20)}...`);
 
 startPolling();
