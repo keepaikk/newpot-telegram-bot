@@ -570,6 +570,13 @@ async function handleMessage(message) {
   else if (text === '/balance' || text === '/wallet') await showWallet(chatId, userId);
   else if (text === '/portfolio' || text === '/port') await showPortfolio(chatId, userId);
   else if (text === '/help') await showHelp(chatId);
+
+  // Keyboard button presses (they send text as messages)
+  else if (text === '📊 Markets' || text === 'Markets') await showMarkets(chatId, userId);
+  else if (text === '💰 Deposit' || text === 'Deposit') await showDeposit(chatId, userId);
+  else if (text === '💼 Wallet' || text === 'Wallet') await showWallet(chatId, userId);
+  else if (text === '📈 Portfolio' || text === 'Portfolio') await showPortfolio(chatId, userId);
+  else if (text === '❓ Help' || text === 'Help') await showHelp(chatId);
 }
 
 // ============================================
